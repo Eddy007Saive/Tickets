@@ -1,0 +1,70 @@
+// Prisma schema for the support / helpdesk ticketing app.
+// Database: Supabase Postgres (set DATABASE_URL / DIRECT_URL in .env).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Connection URLs live in prisma.config.ts (Prisma 7+). The runtime
+  // connection is supplied to PrismaClient via the pg driver adapter
+  // (see lib/prisma.ts).
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  // Hex color (from the curated palette in lib/projects.ts) used as the
+  // project's visual identifier across the UI.
+  color       String   @default("#B8472E")
+  tickets     Ticket[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Ticket {
+  id             String         @id @default(cuid())
+  subject        String
+  description    String
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  requesterName  String
+  requesterEmail String
+  assignee       String?
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId      String
+  comments       Comment[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  author    String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
