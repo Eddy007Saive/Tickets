@@ -82,6 +82,22 @@ export default async function TicketDetailPage({
             {ticket.description}
           </div>
 
+          {ticket.imageUrl && (
+            <a
+              href={ticket.imageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 block overflow-hidden rounded-xl border border-line"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={ticket.imageUrl}
+                alt={`Pièce jointe — ${ticket.subject}`}
+                className="max-h-[480px] w-full object-contain bg-hover"
+              />
+            </a>
+          )}
+
           {/* Conversation */}
           <h2 className="mt-8 mb-3.5 font-mono text-[11px] uppercase tracking-[0.16em] text-faint">
             Conversation · {ticket.comments.length}{" "}

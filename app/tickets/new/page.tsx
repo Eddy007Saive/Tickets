@@ -123,6 +123,21 @@ export default async function NewTicketPage({
           </select>
         </Field>
 
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[13.5px] font-medium text-ink-soft">
+            Image{" "}
+            <span className="font-normal text-faint">
+              (facultatif · PNG, JPEG, WEBP, GIF · 8 Mo max)
+            </span>
+          </span>
+          <input
+            type="file"
+            name="image"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="block w-full text-sm text-ink-soft file:mr-3 file:rounded-lg file:border file:border-line-strong file:bg-card file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink hover:file:bg-hover"
+          />
+        </label>
+
         <div className="mt-3 flex items-center gap-3">
           <button
             type="submit"

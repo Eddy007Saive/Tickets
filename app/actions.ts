@@ -5,8 +5,14 @@ import { redirect } from "next/navigation";
 import { TicketPriority, TicketStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { escapeHtml, sendTelegramMessage } from "@/lib/telegram";
+import { sendTicketResolvedEmail } from "@/lib/email";
+import { uploadTicketImage } from "@/lib/cloudinary";
 import { PRIORITY_LABELS, STATUS_LABELS } from "@/lib/tickets";
 import { DEFAULT_PROJECT_COLOR, isValidProjectColor } from "@/lib/projects";
+
+function appBaseUrl() {
+  return (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+}
 
 // NOTE: auth is intentionally not wired up yet. These Server Actions are
 // reachable via direct POST requests — add authentication/authorization here
@@ -43,6 +49,11 @@ export async function createTicket(formData: FormData) {
     throw new Error("Champs obligatoires manquants");
   }
 
+  const imageInput = formData.get("image");
+  const imageUrl = await uploadTicketImage(
+    imageInput instanceof File ? imageInput : null
+  );
+
   const ticket = await prisma.ticket.create({
     data: {
       projectId,
@@ -51,6 +62,7 @@ export async function createTicket(formData: FormData) {
       requesterName,
       requesterEmail,
       priority: priority as TicketPriority,
+      imageUrl,
     },
     include: { project: true },
   });
@@ -71,6 +83,7 @@ type NewTicketWithProject = {
   priority: TicketPriority;
   status: TicketStatus;
   createdAt: Date;
+  imageUrl: string | null;
   project: { name: string };
 };
 
@@ -78,11 +91,7 @@ type NewTicketWithProject = {
 // Failures are swallowed inside sendTelegramMessage so they never block
 // ticket creation.
 async function notifyNewTicket(ticket: NewTicketWithProject) {
-  const baseUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    ""
-  );
-  const link = `${baseUrl}/tickets/${ticket.id}`;
+  const link = `${appBaseUrl()}/tickets/${ticket.id}`;
 
   const lines = [
     `🎫 <b>Nouveau ticket</b>`,
@@ -97,6 +106,7 @@ async function notifyNewTicket(ticket: NewTicketWithProject) {
     `<b>Description :</b>`,
     escapeHtml(ticket.description),
     ``,
+    ...(ticket.imageUrl ? [`🖼️ ${escapeHtml(ticket.imageUrl)}`] : []),
     `🔗 ${escapeHtml(link)}`,
   ];
 
@@ -108,13 +118,28 @@ export async function updateTicketStatus(formData: FormData) {
   const status = String(formData.get("status") ?? "") as TicketStatus;
   if (!id) throw new Error("Identifiant de ticket manquant");
 
-  const ticket = await prisma.ticket.update({
+  // Read the current state first so we can detect the transition INTO
+  // "RESOLVED" and email the requester only once (not on every save).
+  const before = await prisma.ticket.findUnique({
     where: { id },
-    data: { status },
+    include: { project: { select: { name: true } } },
   });
+  if (!before) throw new Error("Ticket introuvable");
+
+  await prisma.ticket.update({ where: { id }, data: { status } });
+
+  if (before.status !== "RESOLVED" && status === "RESOLVED") {
+    await sendTicketResolvedEmail({
+      to: before.requesterEmail,
+      requesterName: before.requesterName,
+      subject: before.subject,
+      projectName: before.project.name,
+      ticketUrl: `${appBaseUrl()}/tickets/${id}`,
+    });
+  }
 
   revalidatePath(`/tickets/${id}`);
-  revalidatePath(`/projects/${ticket.projectId}`);
+  revalidatePath(`/projects/${before.projectId}`);
   revalidatePath("/");
 }
 

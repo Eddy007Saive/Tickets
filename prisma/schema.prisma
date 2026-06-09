@@ -47,6 +47,8 @@ model Ticket {
   requesterName  String
   requesterEmail String
   assignee       String?
+  // Optional attached image (Cloudinary secure_url).
+  imageUrl       String?
   project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId      String
   comments       Comment[]
